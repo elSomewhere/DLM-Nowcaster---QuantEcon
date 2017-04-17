@@ -1,0 +1,71 @@
+Note: While basic model specifications are public via ECB, I only include code snapshots as implementation belongs to my employer. 
+
+_____________________
+Roughly follows work the ECB paper “Nowcasting (Banbura, Giannone, Reichlin 2010)”. Proprietary implementation, additional proprietary improvements:
+•	Coded natively in R, core econometric model functionality has no package dependencies whatsoever
+•	Underlying Autoregressive structure for idiosyncratic modeling components
+•	EM-ML-EM optimization structure.
+•	3D-covariance matrix calculation for news is temporarily cached via SQL in order to circumvent RAM limitations.
+_____________________
+
+
+Possible improvements?
+It’s been a while since I’ve been working on this project. One of my main observations coming from the practical field of forecasting – people love automatic parametrization. There’s often no time for the intricate process of manual setting of meta-parameters. And it is obviously always a process which can be automated too. With R being the standard package, regardless of all the available options, the fallback always turned out to be auto-arima.
+So the next step would be what I call “auto-arima-izing” the forecast package. This includes 2 requirements:
+
+•	Allow for different g terms across all components. Automate the estimation of the G component, as in Auto-Arima.
+•	Introduce (optional) MA parameters for both the idiosyncratic as well as the common factors, essentially resulting in a varima core.
+
+The first one is pretty straightforward. It involves no additional optimization algorithm, rather just exended model parameter estimation step.
+The merit of the second one is questionable. Introducing MA terms will introduce loads of additional parameters. Give me a supercomputer to optimize likelihood of this guy and we’ll talk about it.
+
+
+_____________________
+
+
+Overview of the package:
+•	Preliminary estimation
+o	In ordert to generated a splined dataset on which to perform PCA, we apply a static factor model to our dataset  - roughly equivalent to a r=1 p=0 g=0 model. Basically, the sfm works as a sophisticated data spliner which itself uses the unconditional mean as starting values
+•	PCA Step
+o	Once we have a balanced dataset, we employ bootstrapped PCA on pre-scaled raw data in order estimate an unbiased stationary covariance matrix
+o	We compute eigenvecors, select first r eigenvectors according to screeplot analysis
+o	Eigenvectors are mxr loadings
+o	Collect mxr loadings
+o	Loadings*input = commonfactors
+•	Once the PCA is computed, we compute the idiosyncratic data by subtracting the summed commonfactors from the initial splined data
+•	We estimate a VAR(p) among the rxn commonfactors and compute the covar matrix
+•	We estimate an AR(g) among the rxm idiosyncratic factors and collect each individual variance term
+•	We collect the mxr loadings, the mx(pxr) VAR(p) coefficients, and the mxg AR(g) coefficients and the corresponding covariance terms and cast it all to state space
+•	We run thete space representation through a kalmanlter to obtain smoothed factore estiamtes
+•	We run an EM-optimization, then a numerical ML, then again an EM to generate an optmized set of kalman filter paramters
+•	With our final parameter estimates, we compute the smoothed states
+•	Using the smoothed states, wer e-compute all the individual series and then add back mean and multiply by std to de-csale the data dagain.
+
+The EM
+•	Stands for expectation maximization
+•	Is a method to optimize a given likelihood function
+•	Converges quickly – but no guarantee for global optimum
+•	In fact, the more parameters we optimize, the more likely we ayre just within a local optimum
+•	Essentially, a gibbs-sampler living in a frequentist world
+•	Optimize for each parameter
+•	Plugin optimized parameters
+•	Re-estimate
+•	Re-optimize
+
+The MLE
+•	Standard numerical MLE
+•	We use Neldon-mead
+•	You could also use BFGS, SANN, whatever….
+
+The news-computation
+•	We compute a so-called news-component
+•	The news-component ungroups forecast changes into different blocks allowing us to where forecast changes evolve from
+•	Important – this definitition of news is not value_t-1-value_t but instead E_tm1(value_t)-value_t. This is more equivalent to a surprise component.
+•	Turns out that computing the news is extremely involved in terms of space complexity. R doesn’t like stacked covariance matrices that essentially result in millions of entries. RAM at work was limited so I instead used RSQL to compute on disc. Given that these covariance matrices were sparse, I’m sure a knowledgable preson would come up with a more elegant solution. Computing on disc di dit for me, although not sure how our compnies network likes the daily creation and deletion of 120 gig temporary files.
+•	Not my problem though since no one complained.
+
+Block estimation
+•	Block estimation allows us to add different « groupings » to our nowcaster.
+•	Additionally to our gobal output (aoup contating all variables, we also add subgroups (additional groups which only contain some variables).
+•	Each group has its own commonfactors and ID values
+•	Because all groups are contained within the same SSF, they are optimized towards one unifying likelihood measure, therefore ensuring additive consistency of the subcomponents.
