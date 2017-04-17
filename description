@@ -1,4 +1,6 @@
-Note: While basic model specifications are public via ECB, I only include code snapshots as implementation belongs to my employer. 
+Note: While basic model specifications are public via ECB, I only include code snapshots as implementation belongs to my employer.
+Included are the kamlmanFiter module, initial parameter estimation as well as a glimpse of the master framework file which is utterly useless if you have no bloomberg PC with API.
+Optimization, utility functions and much more are missing.
 
 _____________________
 Roughly follows work the ECB paper “Nowcasting (Banbura, Giannone, Reichlin 2010)”. Proprietary implementation, additional proprietary improvements:
